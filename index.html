@@ -1,10 +1,287 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>My Game Site</title>
+<meta charset="UTF-8">
+<title>Mini Geometry Dash Engine</title>
+<style>
+body { margin:0; overflow:hidden; background:#000; font-family:Arial; }
+canvas { display:block; background:#111; }
+#ui {
+    position:fixed;
+    top:10px;
+    left:10px;
+    color:white;
+    z-index:10;
+}
+button { margin:2px; }
+</style>
 </head>
 <body>
-  <h1>Welcome to My Game Site 🎮</h1>
-  <p>Your game will go here.</p>
+
+<div id="ui">
+    <button onclick="mode='play'">Play</button>
+    <button onclick="mode='editor'">Editor</button>
+    <button onclick="customize()">Customize Icon</button>
+    <span id="info"></span>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let mode = "play";
+let cameraX = 0;
+
+let player = {
+    x:100,
+    y:300,
+    size:40,
+    velY:0,
+    gravity:1,
+    jump:-15,
+    grounded:false,
+    rotation:0,
+    form:"cube",
+    color:"cyan",
+    secondary:"white"
+};
+
+let groundY = canvas.height - 120;
+
+let level = [
+    {type:"spike", x:600},
+    {type:"spike", x:700},
+    {type:"block", x:1000},
+    {type:"block", x:1040},
+    {type:"spike", x:1200},
+    {type:"portal_ship", x:1500},
+    {type:"spike", x:1700},
+    {type:"portal_ufo", x:2200},
+    {type:"spike", x:2500},
+    {type:"spike", x:2600}
+];
+
+let speed = 6;
+let isDead = false;
+
+function resetPlayer(){
+    player.x = 100;
+    player.y = 300;
+    player.velY = 0;
+    player.form = "cube";
+    cameraX = 0;
+    isDead = false;
+}
+
+function update(){
+    if(mode !== "play" || isDead) return;
+
+    cameraX += speed;
+
+    if(player.form === "cube"){
+        player.velY += player.gravity;
+        player.y += player.velY;
+
+        if(player.y + player.size > groundY){
+            player.y = groundY - player.size;
+            player.velY = 0;
+            player.grounded = true;
+            player.rotation = 0;
+        } else {
+            player.grounded = false;
+            player.rotation += 0.15;
+        }
+    }
+
+    if(player.form === "ship"){
+        if(keys["Space"]) player.velY -= 1.5;
+        else player.velY += 0.8;
+
+        player.y += player.velY;
+        player.rotation = player.velY * 0.05;
+    }
+
+    if(player.form === "ufo"){
+        player.velY += 0.8;
+        player.y += player.velY;
+
+        if(player.y + player.size > groundY){
+            player.y = groundY - player.size;
+            player.velY = 0;
+        }
+    }
+
+    if(player.y > canvas.height || player.y < -100){
+        die();
+    }
+
+    for(let obj of level){
+        let objX = obj.x - cameraX;
+
+        if(obj.type === "spike"){
+            if(collide(objX, groundY-40, 40,40)){
+                die();
+            }
+        }
+
+        if(obj.type === "block"){
+            if(collide(objX, groundY-40,40,40)){
+                player.y = groundY-40-player.size;
+                player.velY = 0;
+            }
+        }
+
+        if(obj.type === "portal_ship" && collide(objX, groundY-80,40,80)){
+            player.form = "ship";
+        }
+
+        if(obj.type === "portal_ufo" && collide(objX, groundY-80,40,80)){
+            player.form = "ufo";
+        }
+    }
+}
+
+function collide(x,y,w,h){
+    return (
+        player.x < x+w &&
+        player.x+player.size > x &&
+        player.y < y+h &&
+        player.y+player.size > y
+    );
+}
+
+function die(){
+    isDead = true;
+    setTimeout(resetPlayer,1000);
+}
+
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    ctx.fillStyle = "#333";
+    ctx.fillRect(0,groundY,canvas.width,200);
+
+    for(let obj of level){
+        let objX = obj.x - cameraX;
+
+        if(obj.type === "spike"){
+            ctx.fillStyle="red";
+            ctx.beginPath();
+            ctx.moveTo(objX,groundY);
+            ctx.lineTo(objX+20,groundY-40);
+            ctx.lineTo(objX+40,groundY);
+            ctx.fill();
+        }
+
+        if(obj.type === "block"){
+            ctx.fillStyle="#888";
+            ctx.fillRect(objX,groundY-40,40,40);
+        }
+
+        if(obj.type === "portal_ship"){
+            ctx.fillStyle="blue";
+            ctx.fillRect(objX,groundY-80,40,80);
+        }
+
+        if(obj.type === "portal_ufo"){
+            ctx.fillStyle="purple";
+            ctx.fillRect(objX,groundY-80,40,80);
+        }
+    }
+
+    drawPlayer();
+}
+
+function drawPlayer(){
+    ctx.save();
+    ctx.translate(player.x+player.size/2, player.y+player.size/2);
+    ctx.rotate(player.rotation);
+
+    ctx.fillStyle = player.color;
+    ctx.strokeStyle = player.secondary;
+    ctx.lineWidth = 4;
+
+    if(player.form === "cube"){
+        ctx.fillRect(-player.size/2,-player.size/2,player.size,player.size);
+        ctx.strokeRect(-player.size/2,-player.size/2,player.size,player.size);
+    }
+
+    if(player.form === "ship"){
+        ctx.beginPath();
+        ctx.moveTo(-20,20);
+        ctx.lineTo(20,0);
+        ctx.lineTo(-20,-20);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    if(player.form === "ufo"){
+        ctx.beginPath();
+        ctx.arc(0,0,20,0,Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    ctx.restore();
+}
+
+let keys = {};
+document.addEventListener("keydown", e=>{
+    keys[e.code]=true;
+
+    if(mode==="play"){
+        if(player.form==="cube" && e.code==="Space" && player.grounded){
+            player.velY = player.jump;
+        }
+
+        if(player.form==="ufo" && e.code==="Space"){
+            player.velY = -12;
+        }
+    }
+});
+
+document.addEventListener("keyup", e=>{
+    keys[e.code]=false;
+});
+
+canvas.addEventListener("click", e=>{
+    if(mode==="editor"){
+        let x = e.clientX + cameraX;
+        level.push({type:"spike", x:x});
+    }
+});
+
+document.addEventListener("keydown", e=>{
+    if(mode==="editor"){
+        if(e.code==="KeyB"){
+            level.push({type:"block", x:cameraX+500});
+        }
+        if(e.code==="KeyS"){
+            localStorage.setItem("gd_level",JSON.stringify(level));
+            alert("Level Saved!");
+        }
+    }
+});
+
+function customize(){
+    let color = prompt("Primary color (ex: cyan, red, yellow)");
+    let secondary = prompt("Secondary color");
+    if(color) player.color=color;
+    if(secondary) player.secondary=secondary;
+}
+
+function loop(){
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
 </body>
 </html>
