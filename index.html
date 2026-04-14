@@ -58,7 +58,7 @@ let coyoteLimit = 8;
 
 let levels = {
 
-1: [  // Easy + Ship section
+1: [
     {type:"spike", x:800},
     {type:"spike", x:1200},
     {type:"block", x:1600},
@@ -70,7 +70,7 @@ let levels = {
     {type:"spike", x:3300}
 ],
 
-2: [  // Harder + Ball mode
+2: [
     {type:"spike", x:600},
     {type:"spike", x:750},
     {type:"block", x:1000},
@@ -264,6 +264,7 @@ function drawPlayer(){
     ctx.restore();
 }
 
+// KEYBOARD
 document.addEventListener("keydown", e=>{
     keys[e.code]=true;
 
@@ -283,6 +284,33 @@ document.addEventListener("keydown", e=>{
 document.addEventListener("keyup", e=>{
     keys[e.code]=false;
 });
+
+// 📱 MOBILE TOUCH CONTROLS
+function handleInputStart(){
+    keys["Space"] = true;
+
+    if(player.form==="cube"){
+        if(player.grounded || coyoteTime > 0){
+            player.velY = player.jump;
+            coyoteTime = 0;
+        }
+    }
+
+    if(player.form==="ball"){
+        player.gravityDir *= -1;
+        player.velY = 0;
+    }
+}
+
+function handleInputEnd(){
+    keys["Space"] = false;
+}
+
+document.addEventListener("touchstart", handleInputStart);
+document.addEventListener("touchend", handleInputEnd);
+
+// Prevent scrolling on mobile
+document.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
 
 function loop(){
     update();
