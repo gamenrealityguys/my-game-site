@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Mini Geometry Dash Engine</title>
+<title>Mini GD Engine</title>
 <style>
 body { margin:0; overflow:hidden; background:#000; font-family:Arial; }
 canvas { display:block; background:#111; }
@@ -19,10 +19,8 @@ button { margin:2px; }
 <body>
 
 <div id="ui">
-    <button onclick="mode='play'">Play</button>
-    <button onclick="mode='editor'">Editor</button>
-    <button onclick="customize()">Customize Icon</button>
-    <span id="info"></span>
+    <button onclick="loadLevel(1)">Level 1</button>
+    <button onclick="loadLevel(2)">Level 2</button>
 </div>
 
 <canvas id="game"></canvas>
@@ -33,52 +31,80 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let mode = "play";
+let groundY = canvas.height - 120;
 let cameraX = 0;
+let currentLevel = 1;
+let isDead = false;
+let speed = 6;
+let keys = {};
 
 let player = {
     x:100,
     y:300,
     size:40,
     velY:0,
-    gravity:1,
-    jump:-15,
+    gravity:0.9,
+    jump:-18,
     grounded:false,
     rotation:0,
     form:"cube",
+    gravityDir:1,
     color:"cyan",
     secondary:"white"
 };
 
-let groundY = canvas.height - 120;
+let coyoteTime = 0;
+let coyoteLimit = 8;
 
-let level = [
-    {type:"spike", x:600},
-    {type:"spike", x:700},
-    {type:"block", x:1000},
-    {type:"block", x:1040},
+let levels = {
+
+1: [  // Easy + Ship section
+    {type:"spike", x:800},
     {type:"spike", x:1200},
-    {type:"portal_ship", x:1500},
-    {type:"spike", x:1700},
-    {type:"portal_ufo", x:2200},
-    {type:"spike", x:2500},
-    {type:"spike", x:2600}
-];
+    {type:"block", x:1600},
+    {type:"block", x:1640},
+    {type:"spike", x:2000},
+    {type:"portal_ship", x:2500},
+    {type:"spike", x:2800},
+    {type:"spike", x:3000},
+    {type:"spike", x:3300}
+],
 
-let speed = 6;
-let isDead = false;
+2: [  // Harder + Ball mode
+    {type:"spike", x:600},
+    {type:"spike", x:750},
+    {type:"block", x:1000},
+    {type:"portal_ball", x:1300},
+    {type:"spike", x:1500},
+    {type:"spike", x:1700},
+    {type:"block", x:2000},
+    {type:"spike", x:2300},
+    {type:"portal_ship", x:2600},
+    {type:"spike", x:2900}
+]
+
+};
+
+let level = levels[1];
+
+function loadLevel(num){
+    currentLevel = num;
+    level = levels[num];
+    resetPlayer();
+}
 
 function resetPlayer(){
     player.x = 100;
     player.y = 300;
     player.velY = 0;
     player.form = "cube";
+    player.gravityDir = 1;
     cameraX = 0;
     isDead = false;
 }
 
 function update(){
-    if(mode !== "play" || isDead) return;
+    if(isDead) return;
 
     cameraX += speed;
 
@@ -90,9 +116,11 @@ function update(){
             player.y = groundY - player.size;
             player.velY = 0;
             player.grounded = true;
+            coyoteTime = coyoteLimit;
             player.rotation = 0;
         } else {
             player.grounded = false;
+            coyoteTime--;
             player.rotation += 0.15;
         }
     }
@@ -100,22 +128,28 @@ function update(){
     if(player.form === "ship"){
         if(keys["Space"]) player.velY -= 1.5;
         else player.velY += 0.8;
-
         player.y += player.velY;
         player.rotation = player.velY * 0.05;
     }
 
-    if(player.form === "ufo"){
-        player.velY += 0.8;
+    if(player.form === "ball"){
+        player.velY += player.gravity * player.gravityDir;
         player.y += player.velY;
 
-        if(player.y + player.size > groundY){
+        if(player.gravityDir === 1 && player.y + player.size > groundY){
             player.y = groundY - player.size;
             player.velY = 0;
         }
+
+        if(player.gravityDir === -1 && player.y < 0){
+            player.y = 0;
+            player.velY = 0;
+        }
+
+        player.rotation += 0.2;
     }
 
-    if(player.y > canvas.height || player.y < -100){
+    if(player.y > canvas.height+200 || player.y < -200){
         die();
     }
 
@@ -123,15 +157,14 @@ function update(){
         let objX = obj.x - cameraX;
 
         if(obj.type === "spike"){
-            if(collide(objX, groundY-40, 40,40)){
-                die();
-            }
+            if(collide(objX, groundY-40,40,40)) die();
         }
 
         if(obj.type === "block"){
             if(collide(objX, groundY-40,40,40)){
                 player.y = groundY-40-player.size;
                 player.velY = 0;
+                player.grounded = true;
             }
         }
 
@@ -139,8 +172,9 @@ function update(){
             player.form = "ship";
         }
 
-        if(obj.type === "portal_ufo" && collide(objX, groundY-80,40,80)){
-            player.form = "ufo";
+        if(obj.type === "portal_ball" && collide(objX, groundY-80,40,80)){
+            player.form = "ball";
+            player.gravityDir = 1;
         }
     }
 }
@@ -156,7 +190,7 @@ function collide(x,y,w,h){
 
 function die(){
     isDead = true;
-    setTimeout(resetPlayer,1000);
+    setTimeout(resetPlayer,800);
 }
 
 function draw(){
@@ -187,8 +221,8 @@ function draw(){
             ctx.fillRect(objX,groundY-80,40,80);
         }
 
-        if(obj.type === "portal_ufo"){
-            ctx.fillStyle="purple";
+        if(obj.type === "portal_ball"){
+            ctx.fillStyle="orange";
             ctx.fillRect(objX,groundY-80,40,80);
         }
     }
@@ -198,7 +232,7 @@ function draw(){
 
 function drawPlayer(){
     ctx.save();
-    ctx.translate(player.x+player.size/2, player.y+player.size/2);
+    ctx.translate(player.x+20, player.y+20);
     ctx.rotate(player.rotation);
 
     ctx.fillStyle = player.color;
@@ -206,8 +240,8 @@ function drawPlayer(){
     ctx.lineWidth = 4;
 
     if(player.form === "cube"){
-        ctx.fillRect(-player.size/2,-player.size/2,player.size,player.size);
-        ctx.strokeRect(-player.size/2,-player.size/2,player.size,player.size);
+        ctx.fillRect(-20,-20,40,40);
+        ctx.strokeRect(-20,-20,40,40);
     }
 
     if(player.form === "ship"){
@@ -220,7 +254,7 @@ function drawPlayer(){
         ctx.stroke();
     }
 
-    if(player.form === "ufo"){
+    if(player.form === "ball"){
         ctx.beginPath();
         ctx.arc(0,0,20,0,Math.PI*2);
         ctx.fill();
@@ -230,50 +264,25 @@ function drawPlayer(){
     ctx.restore();
 }
 
-let keys = {};
 document.addEventListener("keydown", e=>{
     keys[e.code]=true;
 
-    if(mode==="play"){
-        if(player.form==="cube" && e.code==="Space" && player.grounded){
+    if(player.form==="cube" && e.code==="Space"){
+        if(player.grounded || coyoteTime > 0){
             player.velY = player.jump;
+            coyoteTime = 0;
         }
+    }
 
-        if(player.form==="ufo" && e.code==="Space"){
-            player.velY = -12;
-        }
+    if(player.form==="ball" && e.code==="Space"){
+        player.gravityDir *= -1;
+        player.velY = 0;
     }
 });
 
 document.addEventListener("keyup", e=>{
     keys[e.code]=false;
 });
-
-canvas.addEventListener("click", e=>{
-    if(mode==="editor"){
-        let x = e.clientX + cameraX;
-        level.push({type:"spike", x:x});
-    }
-});
-
-document.addEventListener("keydown", e=>{
-    if(mode==="editor"){
-        if(e.code==="KeyB"){
-            level.push({type:"block", x:cameraX+500});
-        }
-        if(e.code==="KeyS"){
-            localStorage.setItem("gd_level",JSON.stringify(level));
-            alert("Level Saved!");
-        }
-    }
-});
-
-function customize(){
-    let color = prompt("Primary color (ex: cyan, red, yellow)");
-    let secondary = prompt("Secondary color");
-    if(color) player.color=color;
-    if(secondary) player.secondary=secondary;
-}
 
 function loop(){
     update();
